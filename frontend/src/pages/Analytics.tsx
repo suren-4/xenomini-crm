@@ -353,8 +353,11 @@ function exportAnalyticsCsv(data: AnalyticsData, days: number) {
 export function Analytics() {
   const [days, setDays] = useState(30);
   const [activeChannel, setActiveChannel] = useState<(typeof CHANNELS)[number]["id"]>("whatsapp");
-  const { data: analytics, loading, error, refetch } = useFetch(() => api.getAnalytics(days), [days]);
-  const { data: campaigns } = useFetch(() => api.getCampaigns());
+  const { data: analytics, loading, error, refetch } = useFetch(() => api.getAnalytics(days), {
+    cacheKey: `analytics:${days}`,
+    deps: [days],
+  });
+  const { data: campaigns } = useFetch(() => api.getCampaigns(), { cacheKey: "campaigns" });
 
   const funnel = analytics?.funnel ?? EMPTY_FUNNEL;
   const kpis = analytics?.kpis ?? {

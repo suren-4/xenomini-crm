@@ -1,7 +1,10 @@
+import { randomUUID } from "crypto";
 import { PrismaClient } from "@prisma/client";
 import { filterCustomersByRules, enrichCustomer, type SegmentRule } from "./lib/segments";
 
 const prisma = new PrismaClient();
+const CUSTOMER_COUNT = Number(process.env.SEED_CUSTOMERS ?? 500);
+const BATCH_SIZE = 100;
 
 const FIRST_NAMES = [
   "Aarav", "Aditi", "Amit", "Ananya", "Arjun", "Bhavya", "Deepa", "Diya",
@@ -86,10 +89,26 @@ async function main() {
   await prisma.order.deleteMany();
   await prisma.customer.deleteMany();
 
-  console.log("Seeding 500 customers...");
+  console.log(`Seeding ${CUSTOMER_COUNT} customers (batched)...`);
   const usedEmails = new Set<string>();
+  const customerRows: Array<{
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    city: string;
+    totalSpend: number;
+    createdAt: Date;
+  }> = [];
+  const orderRows: Array<{
+    id: string;
+    customerId: string;
+    amount: number;
+    items: string;
+    purchasedAt: Date;
+  }> = [];
 
-  for (let i = 0; i < 500; i++) {
+  for (let i = 0; i < CUSTOMER_COUNT; i++) {
     const first = pick(FIRST_NAMES);
     const last = pick(LAST_NAMES);
     const name = `${first} ${last}`;
@@ -102,17 +121,7 @@ async function main() {
     const city = pick(CITIES);
     const orderCount = rand(0, 25);
     const createdAt = randomDate(30, 730);
-
-    const customer = await prisma.customer.create({
-      data: {
-        name,
-        email,
-        phone: `+91-${rand(70000, 99999)}${rand(10000, 99999)}`,
-        city,
-        totalSpend: 0,
-        createdAt,
-      },
-    });
+    const customerId = randomUUID();
 
     let totalSpend = 0;
     for (let j = 0; j < orderCount; j++) {
@@ -124,22 +133,31 @@ async function main() {
       const amount = items.reduce((s, it) => s + it.price * it.quantity, 0);
       totalSpend += amount;
 
-      await prisma.order.create({
-        data: {
-          customerId: customer.id,
-          amount,
-          items: JSON.stringify(items),
-          purchasedAt: randomDate(1, 365),
-        },
+      orderRows.push({
+        id: randomUUID(),
+        customerId,
+        amount,
+        items: JSON.stringify(items),
+        purchasedAt: randomDate(1, 365),
       });
     }
 
-    if (totalSpend > 0) {
-      await prisma.customer.update({
-        where: { id: customer.id },
-        data: { totalSpend },
-      });
-    }
+    customerRows.push({
+      id: customerId,
+      name,
+      email,
+      phone: `+91-${rand(70000, 99999)}${rand(10000, 99999)}`,
+      city,
+      totalSpend,
+      createdAt,
+    });
+  }
+
+  for (let i = 0; i < customerRows.length; i += BATCH_SIZE) {
+    await prisma.customer.createMany({ data: customerRows.slice(i, i + BATCH_SIZE) });
+  }
+  for (let i = 0; i < orderRows.length; i += BATCH_SIZE) {
+    await prisma.order.createMany({ data: orderRows.slice(i, i + BATCH_SIZE) });
   }
 
   console.log("Seeding segments...");

@@ -51,7 +51,7 @@ interface SidebarProps {
 
 export function Sidebar({ isCollapsed, onToggle, isChatOpen, onToggleChat }: SidebarProps) {
   const location = useLocation();
-  const { data: counts } = useFetch(() => api.getCounts());
+  const { data: counts } = useFetch(() => api.getCounts(), { cacheKey: "counts" });
 
   const getCount = (countKey?: "customers" | "segments" | "campaigns") => {
     if (!countKey || !counts) return undefined;

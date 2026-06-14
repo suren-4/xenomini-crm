@@ -328,6 +328,28 @@ app.get("/api/segments/:id/preview", async (req: Request, res: Response) => {
   }
 });
 
+app.delete("/api/segments/:id", async (req: Request, res: Response) => {
+  try {
+    const segment = await prisma.segment.findUnique({
+      where: { id: req.params.id },
+      include: { campaigns: { select: { id: true, status: true } } },
+    });
+    if (!segment) return res.status(404).json({ error: "Segment not found" });
+
+    const sending = segment.campaigns.some((c) => c.status === "sending");
+    if (sending) {
+      return res.status(409).json({
+        error: "Cannot delete segment while a campaign is still sending",
+      });
+    }
+
+    await prisma.segment.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // ── Campaigns ──
 app.get("/api/campaigns", async (_req: Request, res: Response) => {
   try {
@@ -428,6 +450,25 @@ app.post("/api/campaigns/:id/send", async (req: Request, res: Response) => {
         data: { status: "failed" },
       });
     });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+app.delete("/api/campaigns/:id", async (req: Request, res: Response) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+    if (campaign.status === "sending") {
+      return res.status(409).json({
+        error: "Cannot delete campaign while messages are still sending",
+      });
+    }
+
+    await prisma.campaign.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }

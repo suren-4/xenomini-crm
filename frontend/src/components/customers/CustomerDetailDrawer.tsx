@@ -56,7 +56,7 @@ interface CustomerDetailDrawerProps {
 }
 
 export function CustomerDetailDrawer({ customer, onClose }: CustomerDetailDrawerProps) {
-  const { data: segments } = useFetch(() => api.getSegments());
+  const { data: segments } = useFetch(() => api.getSegments(), { cacheKey: "segments" });
   const [comms, setComms] = useState<CustomerCommunication[]>([]);
   const [commsLoading, setCommsLoading] = useState(false);
 

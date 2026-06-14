@@ -209,7 +209,9 @@ interface CampaignDetailDrawerProps {
   open: boolean;
   onClose: () => void;
   onSend?: (campaign: Campaign) => void;
+  onDelete?: (campaign: Campaign) => void;
   sending?: boolean;
+  deleting?: boolean;
 }
 
 export function CampaignDetailDrawer({
@@ -218,7 +220,9 @@ export function CampaignDetailDrawer({
   open,
   onClose,
   onSend,
+  onDelete,
   sending,
+  deleting,
 }: CampaignDetailDrawerProps) {
   const displayAudience = useMemo(() => {
     if (!campaign) return 0;
@@ -306,16 +310,28 @@ export function CampaignDetailDrawer({
         </div>
 
         {/* Actions */}
-        {campaign.status === "draft" && onSend && (
-          <Button
-            className="w-full"
-            leftIcon={<Send className="w-4 h-4" />}
-            onClick={() => onSend(campaign)}
-            disabled={sending}
-          >
-            {sending ? "Sending..." : `Send to ${formatNumber(displayAudience)} customers`}
-          </Button>
-        )}
+        <div className="flex flex-col gap-2">
+          {campaign.status === "draft" && onSend && (
+            <Button
+              className="w-full"
+              leftIcon={<Send className="w-4 h-4" />}
+              onClick={() => onSend(campaign)}
+              disabled={sending}
+            >
+              {sending ? "Sending..." : `Send to ${formatNumber(displayAudience)} customers`}
+            </Button>
+          )}
+          {campaign.status !== "sending" && onDelete && (
+            <Button
+              variant="outline"
+              className="w-full text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-bg)]"
+              onClick={() => onDelete(campaign)}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete campaign"}
+            </Button>
+          )}
+        </div>
       </div>
     </Drawer>
   );

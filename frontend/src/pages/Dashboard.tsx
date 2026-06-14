@@ -286,11 +286,20 @@ function DashboardSkeleton() {
 }
 
 export function Dashboard() {
-  const { data: dashboard, loading: dashLoading, error: dashError } = useFetch(() => api.getDashboard());
-  const { data: campaigns, refetch: refetchCampaigns } = useFetch(() => api.getCampaigns());
-  const { data: segments } = useFetch(() => api.getSegments());
-  const { data: customers, loading: customersLoading } = useFetch(() => api.getCustomers());
-  const { data: analytics, loading: analyticsLoading } = useFetch(() => api.getAnalytics(30));
+  const { data: dashboard, loading: dashLoading, error: dashError } = useFetch(
+    () => api.getDashboard(),
+    { cacheKey: "dashboard" }
+  );
+  const { data: campaigns, refetch: refetchCampaigns } = useFetch(() => api.getCampaigns(), {
+    cacheKey: "campaigns",
+  });
+  const { data: segments } = useFetch(() => api.getSegments(), { cacheKey: "segments" });
+  const { data: customers, loading: customersLoading } = useFetch(() => api.getCustomers(), {
+    cacheKey: "customers",
+  });
+  const { data: analytics, loading: analyticsLoading } = useFetch(() => api.getAnalytics(30), {
+    cacheKey: "analytics:30",
+  });
   const { selectedCampaign, setSelectedCampaign } = useAgentContext();
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [confirmSend, setConfirmSend] = useState<Campaign | null>(null);
@@ -361,7 +370,7 @@ export function Dashboard() {
     }
   };
 
-  if (dashLoading) return <DashboardSkeleton />;
+  if (dashLoading && !dashboard) return <DashboardSkeleton />;
 
   if (dashError || !dashboard) {
     return (

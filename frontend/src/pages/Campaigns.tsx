@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, LayoutGrid, List, Inbox } from "lucide-react";
+import { Plus, LayoutGrid, List, Inbox, Trash2 } from "lucide-react";
 import { formatNumber, formatRelativeDate } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CardSkeleton, TableSkeleton } from "@/components/ui/Skeleton";
@@ -47,8 +47,10 @@ function StatChip({
 }
 
 export function Campaigns() {
-  const { data: campaignsList, loading, error, refetch } = useFetch(() => api.getCampaigns());
-  const { data: segments } = useFetch(() => api.getSegments());
+  const { data: campaignsList, loading, error, refetch } = useFetch(() => api.getCampaigns(), {
+    cacheKey: "campaigns",
+  });
+  const { data: segments } = useFetch(() => api.getSegments(), { cacheKey: "segments" });
   const [view, setView] = useState<"grid" | "list">("list");
   const [searchParams, setSearchParams] = useSearchParams();
   const [creatorOpen, setCreatorOpen] = useState(false);
@@ -56,6 +58,8 @@ export function Campaigns() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [confirmSend, setConfirmSend] = useState<Campaign | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Campaign | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const campaigns = campaignsList ?? [];
 
@@ -113,7 +117,31 @@ export function Campaigns() {
     }
   };
 
-  if (loading) {
+  const requestDelete = (campaign: Campaign, e?: MouseEvent) => {
+    e?.stopPropagation();
+    if (campaign.status === "sending") return;
+    setConfirmDelete(campaign);
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDelete) return;
+    setDeletingId(confirmDelete.id);
+    try {
+      await api.deleteCampaign(confirmDelete.id);
+      if (selectedCampaign?.id === confirmDelete.id) {
+        setSelectedCampaign(null);
+      }
+      setConfirmDelete(null);
+      await refetch({ silent: true });
+      setToastMessage(`Deleted campaign "${confirmDelete.name}"`);
+    } catch (e) {
+      setToastMessage(e instanceof Error ? e.message : "Failed to delete campaign");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (loading && !campaignsList) {
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
@@ -236,18 +264,30 @@ export function Campaigns() {
                       {c.sentAt ? formatRelativeDate(c.sentAt) : formatRelativeDate(c.createdAt)}
                     </td>
                     <td className="px-4 py-4 text-right">
-                      {c.status === "draft" && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            requestSend(c);
-                          }}
-                          disabled={sendingId === c.id}
-                          className="text-[var(--accent)] hover:opacity-80 text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--accent-muted)] hover:bg-[var(--accent-light)] disabled:opacity-50"
-                        >
-                          {sendingId === c.id ? "Sending..." : "Send"}
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end gap-1">
+                        {c.status === "draft" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              requestSend(c);
+                            }}
+                            disabled={sendingId === c.id}
+                            className="text-[var(--accent)] hover:opacity-80 text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--accent-muted)] hover:bg-[var(--accent-light)] disabled:opacity-50"
+                          >
+                            {sendingId === c.id ? "Sending..." : "Send"}
+                          </button>
+                        )}
+                        {c.status !== "sending" && (
+                          <button
+                            onClick={(e) => requestDelete(c, e)}
+                            disabled={deletingId === c.id}
+                            className="p-1.5 rounded-lg text-[var(--text-subtle)] hover:text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                            aria-label={`Delete ${c.name}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </motion.tr>
                 ))}
@@ -300,18 +340,30 @@ export function Campaigns() {
               </div>
               <div className="flex justify-between items-center text-xs text-[var(--text-subtle)] border-t border-[var(--border-muted)] pt-3 mt-auto">
                 <span>{c.sentAt ? formatRelativeDate(c.sentAt) : formatRelativeDate(c.createdAt)}</span>
-                {c.status === "draft" && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      requestSend(c);
-                    }}
-                    disabled={sendingId === c.id}
-                    className="text-[var(--accent)] hover:opacity-80 text-xs font-medium px-2 py-1 rounded border border-[var(--accent-muted)] hover:bg-[var(--accent-light)] disabled:opacity-50"
-                  >
-                    {sendingId === c.id ? "Sending..." : "Send"}
-                  </button>
-                )}
+                <div className="flex items-center gap-1">
+                  {c.status === "draft" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        requestSend(c);
+                      }}
+                      disabled={sendingId === c.id}
+                      className="text-[var(--accent)] hover:opacity-80 text-xs font-medium px-2 py-1 rounded border border-[var(--accent-muted)] hover:bg-[var(--accent-light)] disabled:opacity-50"
+                    >
+                      {sendingId === c.id ? "Sending..." : "Send"}
+                    </button>
+                  )}
+                  {c.status !== "sending" && (
+                    <button
+                      onClick={(e) => requestDelete(c, e)}
+                      disabled={deletingId === c.id}
+                      className="p-1 rounded text-[var(--text-subtle)] hover:text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
+                      aria-label={`Delete ${c.name}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           ))}
@@ -324,7 +376,24 @@ export function Campaigns() {
         open={!!selectedCampaign}
         onClose={() => setSelectedCampaign(null)}
         onSend={requestSend}
+        onDelete={requestDelete}
         sending={selectedCampaign ? sendingId === selectedCampaign.id : false}
+        deleting={selectedCampaign ? deletingId === selectedCampaign.id : false}
+      />
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete campaign?"
+        message={
+          confirmDelete
+            ? `Permanently delete "${confirmDelete.name}"? This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        loading={!!deletingId}
+        onConfirm={executeDelete}
+        onCancel={() => setConfirmDelete(null)}
       />
 
       <ConfirmDialog

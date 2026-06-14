@@ -82,7 +82,9 @@ function FilterChipRow({
 }
 
 export function Customers() {
-  const { data: customers, loading, error } = useFetch(() => api.getCustomers());
+  const { data: customers, loading, error } = useFetch(() => api.getCustomers(), {
+    cacheKey: "customers",
+  });
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | "all">("all");
   const [cityFilter, setCityFilter] = useState<string>("all");
@@ -175,7 +177,7 @@ export function Customers() {
     }
   };
 
-  if (loading) {
+  if (loading && !customers) {
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">

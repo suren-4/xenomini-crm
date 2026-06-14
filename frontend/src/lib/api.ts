@@ -1,3 +1,5 @@
+import { invalidateCache } from "./queryCache";
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -239,7 +241,23 @@ export const api = {
     ),
 
   createSegment: (data: { name: string; rules: SegmentRule[]; ruleLogic: "AND" | "OR" }) =>
-    request<Segment>("/api/segments", { method: "POST", body: JSON.stringify(data) }),
+    request<Segment>("/api/segments", { method: "POST", body: JSON.stringify(data) }).then(
+      (segment) => {
+        invalidateCache("segments");
+        invalidateCache("dashboard");
+        invalidateCache("counts");
+        return segment;
+      }
+    ),
+
+  deleteSegment: (id: string) =>
+    request<{ ok: boolean }>(`/api/segments/${id}`, { method: "DELETE" }).then((result) => {
+      invalidateCache("segments");
+      invalidateCache("campaigns");
+      invalidateCache("dashboard");
+      invalidateCache("counts");
+      return result;
+    }),
 
   getCampaigns: () => request<Campaign[]>("/api/campaigns"),
 
@@ -248,7 +266,23 @@ export const api = {
     segmentId: string;
     message: string;
     channel: string;
-  }) => request<Campaign>("/api/campaigns", { method: "POST", body: JSON.stringify(data) }),
+  }) =>
+    request<Campaign>("/api/campaigns", { method: "POST", body: JSON.stringify(data) }).then(
+      (campaign) => {
+        invalidateCache("campaigns");
+        invalidateCache("dashboard");
+        invalidateCache("counts");
+        return campaign;
+      }
+    ),
+
+  deleteCampaign: (id: string) =>
+    request<{ ok: boolean }>(`/api/campaigns/${id}`, { method: "DELETE" }).then((result) => {
+      invalidateCache("campaigns");
+      invalidateCache("dashboard");
+      invalidateCache("counts");
+      return result;
+    }),
 
   sendCampaign: (id: string) =>
     request<{ message: string; count: number }>(`/api/campaigns/${id}/send`, { method: "POST" }),

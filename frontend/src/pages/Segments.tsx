@@ -6,7 +6,7 @@ import { formatNumber, formatCurrency } from "@/lib/utils";
 import { Drawer } from "@/components/ui/Drawer";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CampaignCreator } from "@/components/campaigns/CampaignCreator";
 import { SuggestAudiencePanel } from "@/components/segments/SuggestAudiencePanel";
 import { useFetch } from "@/hooks/useFetch";
@@ -25,8 +25,10 @@ const item = {
 
 export function Segments() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { data: segmentsList, loading, error, refetch } = useFetch(() => api.getSegments());
-  const { data: customers } = useFetch(() => api.getCustomers());
+  const { data: segmentsList, loading, error, refetch } = useFetch(() => api.getSegments(), {
+    cacheKey: "segments",
+  });
+  const { data: customers } = useFetch(() => api.getCustomers(), { cacheKey: "customers" });
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
   const [campaignCreatorOpen, setCampaignCreatorOpen] = useState(false);
   const [campaignSegmentId, setCampaignSegmentId] = useState<string | undefined>();
@@ -35,6 +37,8 @@ export function Segments() {
   const [membersSegment, setMembersSegment] = useState<Segment | null>(null);
   const [members, setMembers] = useState<Customer[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<Segment | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (toastMessage) {
@@ -123,6 +127,21 @@ export function Segments() {
     setCampaignCreatorOpen(true);
   };
 
+  const executeDeleteSegment = async () => {
+    if (!confirmDelete) return;
+    setDeletingId(confirmDelete.id);
+    try {
+      await api.deleteSegment(confirmDelete.id);
+      setConfirmDelete(null);
+      await refetch({ silent: true });
+      setToastMessage(`Deleted segment "${confirmDelete.name}"`);
+    } catch (e) {
+      setToastMessage(e instanceof Error ? e.message : "Failed to delete segment");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const formatRuleValue = (field: string, value: string | number) => {
     if (field === 'totalSpend') return formatCurrency(Number(value));
     return value;
@@ -177,7 +196,7 @@ export function Segments() {
     return rulesStrs.join(` ${seg.ruleLogic} `);
   };
 
-  if (loading) {
+  if (loading && !segmentsList) {
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
@@ -241,10 +260,20 @@ export function Segments() {
           >
             <div className="flex justify-between items-start mb-4">
               <h3 className="font-semibold text-lg text-[var(--text-primary)] truncate pr-2">{seg.name}</h3>
-              <div className="bg-[var(--bg-muted)] text-[var(--text-secondary)] text-xs font-bold px-2 py-1 rounded flex items-center gap-1.5 shrink-0">
-                <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />
-                <Users className="w-3 h-3 text-[var(--accent)]" />
-                {formatNumber(seg.customerCount)}
+              <div className="flex items-center gap-1 shrink-0">
+                <div className="bg-[var(--bg-muted)] text-[var(--text-secondary)] text-xs font-bold px-2 py-1 rounded flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />
+                  <Users className="w-3 h-3 text-[var(--accent)]" />
+                  {formatNumber(seg.customerCount)}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(seg)}
+                  className="p-1.5 rounded-lg text-[var(--text-subtle)] hover:text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  aria-label={`Delete ${seg.name}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
             
@@ -468,6 +497,21 @@ export function Segments() {
           setToastMessage("Campaign created! Check Campaigns page to view or send.");
           setTimeout(() => setToastMessage(null), 4000);
         }}
+      />
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete segment?"
+        message={
+          confirmDelete
+            ? `Delete "${confirmDelete.name}"? Linked campaigns will also be removed.`
+            : ""
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        loading={!!deletingId}
+        onConfirm={executeDeleteSegment}
+        onCancel={() => setConfirmDelete(null)}
       />
 
       <AnimatePresence>
