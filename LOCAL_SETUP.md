@@ -7,13 +7,30 @@ flowchart LR
   FE[Frontend :5173] -->|/api proxy| CRM[Backend :3000]
   CRM -->|POST /api/send| CH[Channel Service :3001]
   CH -->|webhook callbacks| CRM
-  CRM --> DB[(SQLite)]
+  CRM --> DB[(PostgreSQL)]
   CRM -->|GROQ_API_KEY| GPT[Groq API]
 ```
 
 **Callback flow:** CRM queues communications → channel-service simulates delivery → posts events (`sent`, `delivered`, `opened`, `read`, `clicked`, `failed`) to `POST /api/webhooks/channel-callback` → campaign stats update live.
 
 ## Quick start (3 terminals)
+
+### Step 0 — Database (one-time)
+
+The schema uses **PostgreSQL** (required for Railway; SQLite is not used).
+
+```bash
+# From repo root — starts Postgres on localhost:5432
+docker compose up -d
+```
+
+Copy env and point at local Postgres:
+
+```bash
+cd backend
+cp .env.example .env
+# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/xeno_crm
+```
 
 ### Terminal 1 — Backend
 ```bash
@@ -47,7 +64,7 @@ Copy `backend/.env.example` to `backend/.env`:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | Yes | SQLite path, e.g. `file:./dev.db` |
+| `DATABASE_URL` | Yes | `postgresql://postgres:postgres@localhost:5432/xeno_crm` (see `docker-compose.yml`) |
 | `PORT` | No | Backend port (default 3000) |
 | `CRM_PUBLIC_URL` | Yes for callbacks | `http://localhost:3000` |
 | `CHANNEL_SERVICE_URL` | Yes for send | `http://localhost:3001` |

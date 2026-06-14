@@ -2,12 +2,16 @@
   "name": "xeno-crm-backend",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "db:push": "prisma db push",
     "db:seed": "tsx src/seed.ts",
+    "db:seed:prod": "node dist/seed.js",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"
   },

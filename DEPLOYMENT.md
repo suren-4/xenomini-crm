@@ -1,211 +1,213 @@
-# Xeno Mini CRM — Deployment Plan
+# Xeno Mini CRM — Free Deployment Guide
 
-Pre-deployment verification was run locally on **June 14, 2026**. Use this guide to ship a public URL for the Xeno submission.
+Deploy the full stack for **$0** using:
 
----
-
-## Pre-deploy verification summary
-
-| Check | Status |
-|-------|--------|
-| Backend health `GET /api/health` | OK |
-| Channel service health + queue | OK |
-| Frontend `localhost:5173` | OK (200) |
-| Data: 500 customers, 9 segments, 11 campaigns | OK |
-| Dashboard + analytics APIs | OK |
-| Suggest segment AI | OK |
-| IntelliSense suggest | OK |
-| Channel suggest | OK |
-| CampaignGPT chat | OK |
-| Customer communications + events | OK |
-| SSE recent events API | OK |
-| `npm run build` — backend | OK |
-| `npm run build` — channel-service | OK |
-| `npx vite build` — frontend | OK |
-
-### Manual UI checks (do once before recording video)
-
-- [ ] Segments → **Suggest audience** → rules fill → save
-- [ ] Campaigns → create → IntelliSense ghost → **Send** → live callback feed ticks
-- [ ] Customers → open profile → **Communication journey** timeline
-- [ ] CampaignGPT → ask + optional launch proposal
-- [ ] Dark mode toggle (optional)
-
-### Known local-only constraints
-
-- **SQLite** (`file:./dev.db`) — fine locally; **use PostgreSQL in production**
-- **Frontend** uses empty `VITE_API_URL` in dev (Vite proxy). In prod, set to your backend URL **or** serve frontend with `/api` on same origin
-- Remove **`VITE_GROQ_API_KEY` from `frontend/.env`** — Groq key belongs only in `backend/.env` (never commit keys)
-
----
-
-## Recommended hosting: Railway (3 services + Postgres)
-
-Railway fits this stack: Node apps + PostgreSQL + internal networking.
+| Part | Platform |
+|------|----------|
+| Frontend | **Vercel** |
+| Database | **Neon** (PostgreSQL) |
+| Backend CRM | **Render** |
+| Channel service | **Koyeb** |
 
 ```mermaid
 flowchart LR
-  User[Browser] --> FE[Vercel or Railway Frontend]
-  FE -->|HTTPS /api| CRM[Railway: backend]
-  CRM --> DB[(PostgreSQL)]
-  CRM -->|POST /api/send| CH[Railway: channel-service]
-  CH -->|webhook callbacks| CRM
+  User[Browser] --> FE[Vercel frontend]
+  FE -->|VITE_API_URL| BE[Render backend]
+  BE --> DB[(Neon Postgres)]
+  BE -->|CHANNEL_SERVICE_URL| CH[Koyeb channel-service]
+  CH -->|CRM_PUBLIC_URL webhook| BE
 ```
 
-**Alternative:** Frontend on **Vercel**, backend + channel + DB on **Railway**.
+**Deadline:** June 15, 2026, 12 PM
 
 ---
 
-## Step-by-step deployment
+## Before you deploy
 
-### Phase 0 — Repo hygiene (30 min)
-
-1. Create **GitHub repo** (if not done)
-2. Ensure `.gitignore` includes:
-   - `node_modules/`, `dist/`, `.env`, `*.db`, `*.sqlite`
-3. **Never commit** `backend/.env` or API keys
-4. Add root **`README.md`** (product intro, architecture, local setup link)
-
-### Phase 1 — PostgreSQL (15 min)
-
-1. Railway → **New Project** → **PostgreSQL**
-2. Copy `DATABASE_URL` (starts with `postgresql://`)
-
-### Phase 2 — Backend CRM (45 min)
-
-1. Railway → **New Service** → deploy from repo, root: `backend/`
-2. **Build command:** `npm install && npm run build`
-3. **Start command:** `npx prisma db push && npm run db:seed && npm start`
-   - Or run seed once manually, then start: `npm start`
-4. **Environment variables:**
-
-| Variable | Example | Required |
-|----------|---------|----------|
-| `DATABASE_URL` | `postgresql://...` | Yes |
-| `PORT` | `3000` (Railway sets automatically) | Auto |
-| `CRM_PUBLIC_URL` | `https://your-crm.up.railway.app` | **Yes** — channel callbacks target this |
-| `CHANNEL_SERVICE_URL` | `https://your-channel.up.railway.app` | **Yes** |
-| `GROQ_API_KEY` | `gsk_...` | For AI features |
-
-5. **Prisma:** change `schema.prisma` datasource:
-
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-```
-
-6. Redeploy after schema change
-7. Verify: `curl https://your-crm.up.railway.app/api/health`
-
-### Phase 3 — Channel service (20 min)
-
-1. Railway → **New Service** → root: `channel-service/`
-2. **Build:** `npm install && npm run build`
-3. **Start:** `npm start`
-4. **Env:** `PORT` (auto), optional `CHANNEL_CONCURRENCY=12`
-5. Verify: `curl https://your-channel.up.railway.app/api/health`
-6. Update backend `CHANNEL_SERVICE_URL` to this public URL
-
-### Phase 4 — Frontend (30 min)
-
-**Option A — Vercel (recommended for static SPA)**
-
-1. Import repo, root: `frontend/`
-2. **Build:** `npm install && npx vite build` (skip `tsc` if CI fails — vite build alone works)
-3. **Output:** `dist`
-4. **Env:**
-
-| Variable | Value |
-|----------|-------|
-| `VITE_API_URL` | `https://your-crm.up.railway.app` |
-
-5. Deploy → open URL → confirm API calls hit Railway backend
-
-**Option B — Same Railway project**
-
-- Build frontend, serve `dist` via nginx/Caddy, or add static hosting on Railway
-
-### Phase 5 — Wire callbacks (critical)
-
-Channel service must reach CRM webhook **over the public internet**:
-
-```
-CRM_PUBLIC_URL=https://your-crm.up.railway.app
-→ callbacks go to https://your-crm.up.railway.app/api/webhooks/channel-callback
-```
-
-**Test after deploy:**
-
-1. Open app → send a small segment campaign
-2. `curl https://your-channel.../api/health` — queue should show activity
-3. Campaign stats should increase within ~30s
-4. Open campaign drawer → **Live callback feed**
-
-### Phase 6 — CORS (if frontend on different domain)
-
-If browser blocks API calls, add to `backend/src/server.ts`:
-
-```ts
-app.use(cors({
-  origin: ["https://your-frontend.vercel.app"],
-  credentials: true,
-}));
-```
-
-Currently `cors()` allows all — works for demo; tighten if desired.
+1. Code is pushed to **GitHub** (no `.env` files in the repo)
+2. `backend/prisma/schema.prisma` uses `provider = "postgresql"`
+3. `frontend/vercel.json` exists (SPA routing for React Router)
 
 ---
 
-## Environment variable cheat sheet
+## Step 1 — Neon PostgreSQL (~5 min)
 
-### Backend (`backend/.env`)
+1. Go to [neon.tech](https://neon.tech) and sign up (GitHub login, **no credit card**)
+2. Click **New Project**
+3. Name: `xeno-crm` → region closest to you → **Create**
+4. On the dashboard, open **Connection details**
+5. Copy the **connection string** (PostgreSQL). It looks like:
+   ```
+   postgresql://neondb_owner:xxxxx@ep-cool-name-123456.us-east-2.aws.neon.tech/neondb?sslmode=require
+   ```
+6. Save this as your `DATABASE_URL` — you will paste it into Render in Step 2
+
+---
+
+## Step 2 — Backend on Render (~20 min)
+
+1. Go to [render.com](https://render.com) → sign up with **GitHub**
+2. Dashboard → **New +** → **Web Service**
+3. Connect your CRM GitHub repository
+4. Fill in:
+
+| Field | Value |
+|-------|-------|
+| **Name** | `xeno-crm-backend` |
+| **Region** | Same region as Neon if possible |
+| **Root Directory** | `backend` |
+| **Runtime** | Node |
+| **Build Command** | `npm install && npm run build` |
+| **Start Command** | `npx prisma db push && npm run db:seed:prod && npm start` |
+| **Instance Type** | **Free** |
+
+5. Expand **Environment Variables** and add:
+
+| Key | Value |
+|-----|-------|
+| `DATABASE_URL` | Paste Neon connection string from Step 1 |
+| `GROQ_API_KEY` | Your key from [console.groq.com](https://console.groq.com) |
+| `CRM_PUBLIC_URL` | Leave blank for now |
+| `CHANNEL_SERVICE_URL` | Leave blank for now |
+
+6. Click **Create Web Service**
+7. Wait for the first deploy (5–10 min). Check **Logs** for errors.
+8. When live, copy your URL from the top of the dashboard, e.g.:
+   ```
+   https://xeno-crm-backend.onrender.com
+   ```
+9. Go to **Environment** → add or update:
+   ```
+   CRM_PUBLIC_URL=https://xeno-crm-backend.onrender.com
+   ```
+   (Use your actual URL, **no trailing slash**)
+10. Save — Render redeploys automatically
+11. Test in browser:
+    ```
+    https://YOUR-BACKEND.onrender.com/api/health
+    https://YOUR-BACKEND.onrender.com/api/counts
+    ```
+    You should see health JSON and customer/segment counts.
+
+> **Cold starts:** Free Render sleeps after 15 min idle. First request may take 30–60 seconds.
+
+---
+
+## Step 3 — Channel service on Koyeb (~15 min)
+
+1. Go to [koyeb.com](https://koyeb.com) → sign up (free tier, no card)
+2. **Create App** → **Web Service**
+3. **GitHub** → select the same CRM repo
+4. Settings:
+
+| Field | Value |
+|-------|-------|
+| **Name** | `xeno-channel` |
+| **Directory** | `channel-service` |
+| **Builder** | Buildpack |
+| **Build command** | `npm install && npm run build` |
+| **Run command** | `npm start` |
+| **Instance** | **Free** (512 MB) |
+| **Region** | Washington, D.C. or Frankfurt |
+
+5. No extra env vars required (`PORT` is set by Koyeb)
+6. Click **Deploy**
+7. When live, copy URL e.g.:
+   ```
+   https://xeno-channel-USER.koyeb.app
+   ```
+8. Test:
+   ```
+   https://YOUR-CHANNEL.koyeb.app/api/health
+   ```
+
+> **Cold starts:** Free Koyeb sleeps after ~1 hour idle. Hit `/api/health` before sending a campaign.
+
+---
+
+## Step 4 — Wire channel URL into backend (~2 min)
+
+1. Back on **Render** → open your backend service
+2. **Environment** → set:
+   ```
+   CHANNEL_SERVICE_URL=https://YOUR-CHANNEL.koyeb.app
+   ```
+3. Save and wait for redeploy
+
+Your backend should now have all four variables:
 
 ```env
-DATABASE_URL=postgresql://user:pass@host:5432/db
-PORT=3000
-CRM_PUBLIC_URL=https://YOUR-CRM-DOMAIN
-CHANNEL_SERVICE_URL=https://YOUR-CHANNEL-DOMAIN
+DATABASE_URL=postgresql://...neon...
+CRM_PUBLIC_URL=https://YOUR-BACKEND.onrender.com
+CHANNEL_SERVICE_URL=https://YOUR-CHANNEL.koyeb.app
 GROQ_API_KEY=gsk_...
 ```
 
-### Channel service
+---
 
-```env
-PORT=3001
-CHANNEL_CONCURRENCY=12
-CALLBACK_MAX_RETRIES=4
-```
+## Step 5 — Frontend on Vercel (~10 min)
 
-### Frontend (`frontend/.env.production` or Vercel env)
+1. Go to [vercel.com](https://vercel.com) → sign up with **GitHub**
+2. **Add New…** → **Project** → import your CRM repo
+3. Configure:
 
-```env
-VITE_API_URL=https://YOUR-CRM-DOMAIN
-```
+| Field | Value |
+|-------|-------|
+| **Framework Preset** | Vite |
+| **Root Directory** | `frontend` (click Edit) |
+| **Build Command** | `npm install && npx vite build` |
+| **Output Directory** | `dist` |
 
-Leave `VITE_API_URL` **empty** only for local dev with Vite proxy.
+4. **Environment Variables:**
+
+| Name | Value |
+|------|-------|
+| `VITE_API_URL` | `https://YOUR-BACKEND.onrender.com` |
+
+No trailing slash. Use your Render backend URL, not Koyeb.
+
+5. Click **Deploy**
+6. When done, open your URL e.g. `https://xeno-crm.vercel.app`
+7. Dashboard should load with 500 customers, segments, and campaigns
 
 ---
 
-## Submission deliverables checklist
+## Step 6 — End-to-end test
 
-| Item | Action |
-|------|--------|
-| **Hosted URL** | Frontend public link (judges open in browser) |
-| **GitHub repo** | Clean README, no secrets |
-| **Walkthrough video** | 5–6 min, narrated, show live deployed URL |
+Do this **before** recording your demo video:
+
+1. **Wake backend** — open `/api/health`, wait up to 60s if cold
+2. **Wake channel** — open `/api/health`
+3. Open **Vercel frontend**
+4. Go to **Campaigns** → open a draft → **Send**
+5. Within ~30 seconds:
+   - Stats should increase (sent, delivered, etc.)
+   - **Live callback feed** should show events
+
+If stats stay at **0**, `CRM_PUBLIC_URL` on Render is wrong — it must be the public backend URL.
+
+---
+
+## Before your demo (avoid cold starts)
+
+Free tiers sleep when idle. **2 minutes before recording:**
+
+1. Open `https://YOUR-BACKEND.onrender.com/api/health`
+2. Open `https://YOUR-CHANNEL.koyeb.app/api/health`
+3. Then open the Vercel app
+
+Optional: [cron-job.org](https://cron-job.org) (free) — ping both health URLs every 10 minutes on demo day.
+
+---
+
+## Submission checklist
+
+| Item | What to submit |
+|------|----------------|
+| **Hosted URL** | Vercel frontend link |
+| **GitHub repo** | Public repo URL |
+| **Video** | 5–6 min walkthrough on the **live** URL |
 | **Deadline** | June 15, 2026, 12 PM |
-
-### Video demo order (recommended)
-
-1. Product intro — shopper CRM, AI-native
-2. Suggest audience → create segment
-3. Campaign + IntelliSense → send
-4. Live callback feed (SSE)
-5. Customer communication journey
-6. Architecture diagram (CRM ↔ channel ↔ webhooks)
-7. How you used AI to build
 
 ---
 
@@ -213,31 +215,30 @@ Leave `VITE_API_URL` **empty** only for local dev with Vite proxy.
 
 | Problem | Fix |
 |---------|-----|
-| Campaign sends but stats stay 0 | `CRM_PUBLIC_URL` wrong — channel can't callback |
-| AI features empty | Set `GROQ_API_KEY` on backend |
-| Frontend can't reach API | Set `VITE_API_URL`; check CORS |
-| DB empty on deploy | Run `npm run db:seed` once on backend |
-| SSE not live in prod | Ensure proxy doesn't buffer SSE; Vercel → call backend URL directly |
-| SQLite on Railway | Switch to PostgreSQL — ephemeral disk loses SQLite |
+| Render build fails | Root Directory must be `backend` |
+| `prisma db push` fails | Check `DATABASE_URL`; schema must use `postgresql` |
+| Frontend empty / errors | Set `VITE_API_URL` on Vercel, then **Redeploy** |
+| Campaign stats stay 0 | Fix `CRM_PUBLIC_URL` on Render backend |
+| `/campaigns` 404 on refresh | Ensure `frontend/vercel.json` is committed |
+| AI features don't work | Add `GROQ_API_KEY` on Render backend only |
+| Slow first load | Normal on free tier — wake services before demo |
+| DB empty | Check Render logs for seed errors; start command includes `db:seed:prod` |
 
 ---
 
-## Optional polish before submit
+## Local dev (unchanged)
 
-- [ ] Root `README.md` with architecture diagram
-- [ ] Remove unused `frontend/.env` Groq key
-- [ ] Pin Node version in `package.json` (`engines`: `"node": ">=20"`)
-- [ ] One screenshot for README hero image
-
----
-
-## Quick local re-verify (any time)
+Use Neon connection string in `backend/.env`, or run Postgres locally:
 
 ```bash
-curl http://localhost:3000/api/health
-curl http://localhost:3001/api/health
-curl http://localhost:3000/api/counts
-curl http://localhost:3000/api/dashboard
+# Terminal 1
+cd backend && npm run dev
+
+# Terminal 2
+cd channel-service && npm run dev
+
+# Terminal 3
+cd frontend && npm run dev
 ```
 
-All three terminals: `backend`, `channel-service`, `frontend` → http://localhost:5173
+Keep `VITE_API_URL` empty in `frontend/.env` for local Vite proxy.

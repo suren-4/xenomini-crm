@@ -1,0 +1,16 @@
+# Local PostgreSQL for development (Railway uses its own Postgres in production)
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: xeno_crm
+    ports:
+      - "5432:5432"
+    volumes:
+      - xeno_crm_pg:/var/lib/postgresql/data
+
+volumes:
+  xeno_crm_pg:
