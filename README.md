@@ -126,7 +126,7 @@ More detail: [LOCAL_SETUP.md](./LOCAL_SETUP.md) · API reference: [BACKEND_SETUP
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | Yes | `postgresql://postgres:postgres@localhost:5432/xeno_crm` (local) |
+| `DATABASE_URL` | Yes |(local) |
 | `CRM_PUBLIC_URL` | Yes | Public backend URL — channel callbacks target this |
 | `CHANNEL_SERVICE_URL` | Yes | Channel service URL |
 | `GROQ_API_KEY` | For AI | Groq key for IntelliSense, suggest-audience, CampaignGPT |
