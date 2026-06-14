@@ -10,7 +10,7 @@ import { CampaignCreator } from "@/components/campaigns/CampaignCreator";
 import { CampaignDetailDrawer } from "@/components/campaigns/CampaignDetailDrawer";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
-import { useFetch } from "@/hooks/useFetch";
+import { useFetch, usePageVisible } from "@/hooks/useFetch";
 import { useAgentContext } from "@/context/AgentContext";
 import { api, type Campaign } from "@/lib/api";
 
@@ -82,13 +82,14 @@ export function Campaigns() {
     }
   }, [toastMessage]);
 
+  const pageVisible = usePageVisible();
   const hasSendingCampaigns = campaigns.some((c) => c.status === "sending");
 
   useEffect(() => {
-    if (!hasSendingCampaigns) return;
-    const interval = setInterval(() => refetch({ silent: true }), 3000);
+    if (!hasSendingCampaigns || !pageVisible) return;
+    const interval = setInterval(() => refetch({ silent: true, force: true }), 5000);
     return () => clearInterval(interval);
-  }, [hasSendingCampaigns, refetch]);
+  }, [hasSendingCampaigns, pageVisible, refetch]);
 
   useEffect(() => {
     if (!selectedCampaign || !campaignsList) return;

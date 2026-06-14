@@ -84,6 +84,7 @@ function FilterChipRow({
 export function Customers() {
   const { data: customers, loading, error } = useFetch(() => api.getCustomers(), {
     cacheKey: "customers",
+    ttlMs: 120_000,
   });
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | "all">("all");

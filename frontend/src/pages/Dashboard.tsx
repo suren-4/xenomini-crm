@@ -296,6 +296,7 @@ export function Dashboard() {
   const { data: segments } = useFetch(() => api.getSegments(), { cacheKey: "segments" });
   const { data: customers, loading: customersLoading } = useFetch(() => api.getCustomers(), {
     cacheKey: "customers",
+    ttlMs: 120_000,
   });
   const { data: analytics, loading: analyticsLoading } = useFetch(() => api.getAnalytics(30), {
     cacheKey: "analytics:30",
@@ -328,14 +329,6 @@ export function Dashboard() {
 
   const customerCount = useCountUp(dashboard?.totalCustomers ?? 0);
   const activeCampaigns = useCountUp(dashboard?.activeCampaigns ?? 0);
-
-  const hasSendingCampaigns = (campaigns ?? []).some((c) => c.status === "sending");
-
-  useEffect(() => {
-    if (!hasSendingCampaigns) return;
-    const interval = setInterval(() => refetchCampaigns({ silent: true }), 3000);
-    return () => clearInterval(interval);
-  }, [hasSendingCampaigns, refetchCampaigns]);
 
   useEffect(() => {
     if (!selectedCampaign || !campaigns) return;
@@ -445,7 +438,7 @@ export function Dashboard() {
         <motion.div variants={item} className="col-span-12 grid grid-cols-1 lg:grid-cols-[3fr_7fr] gap-[var(--space-4)]">
           <AiRecommendationsPanel
             recommendations={aiRecommendations}
-            loading={customersLoading || analyticsLoading}
+            loading={(customersLoading && !customers) || (analyticsLoading && !analytics)}
           />
           <CommunicationFunnel funnel={dashboard.funnel} />
         </motion.div>

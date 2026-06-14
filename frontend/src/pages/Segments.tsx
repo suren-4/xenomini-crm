@@ -29,7 +29,10 @@ export function Segments() {
   const { data: segmentsList, loading, error, refetch } = useFetch(() => api.getSegments(), {
     cacheKey: "segments",
   });
-  const { data: customers } = useFetch(() => api.getCustomers(), { cacheKey: "customers" });
+  const { data: customers } = useFetch(() => api.getCustomers(), {
+    cacheKey: "customers",
+    ttlMs: 120_000,
+  });
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
   const [campaignCreatorOpen, setCampaignCreatorOpen] = useState(false);
   const [campaignSegmentId, setCampaignSegmentId] = useState<string | undefined>();
