@@ -119,7 +119,6 @@ export function Campaigns() {
 
   const requestDelete = (campaign: Campaign, e?: MouseEvent) => {
     e?.stopPropagation();
-    if (campaign.status === "sending") return;
     setConfirmDelete(campaign);
   };
 
@@ -277,16 +276,15 @@ export function Campaigns() {
                             {sendingId === c.id ? "Sending..." : "Send"}
                           </button>
                         )}
-                        {c.status !== "sending" && (
-                          <button
-                            onClick={(e) => requestDelete(c, e)}
-                            disabled={deletingId === c.id}
-                            className="p-1.5 rounded-lg text-[var(--text-subtle)] hover:text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                            aria-label={`Delete ${c.name}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        <button
+                          onClick={(e) => requestDelete(c, e)}
+                          disabled={deletingId === c.id}
+                          className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
+                          aria-label={`Delete ${c.name}`}
+                          title="Delete campaign"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </motion.tr>
@@ -353,16 +351,15 @@ export function Campaigns() {
                       {sendingId === c.id ? "Sending..." : "Send"}
                     </button>
                   )}
-                  {c.status !== "sending" && (
-                    <button
-                      onClick={(e) => requestDelete(c, e)}
-                      disabled={deletingId === c.id}
-                      className="p-1 rounded text-[var(--text-subtle)] hover:text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
-                      aria-label={`Delete ${c.name}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => requestDelete(c, e)}
+                    disabled={deletingId === c.id}
+                    className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
+                    aria-label={`Delete ${c.name}`}
+                    title="Delete campaign"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -386,7 +383,9 @@ export function Campaigns() {
         title="Delete campaign?"
         message={
           confirmDelete
-            ? `Permanently delete "${confirmDelete.name}"? This cannot be undone.`
+            ? confirmDelete.status === "sending"
+              ? `Delete stuck campaign "${confirmDelete.name}"? It is still marked as sending but can be removed from your list.`
+              : `Permanently delete "${confirmDelete.name}"? This cannot be undone.`
             : ""
         }
         confirmLabel="Delete"

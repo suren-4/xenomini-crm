@@ -157,7 +157,21 @@ function buildCampaignStats(
 
 // ── Health ──
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, service: "crm-backend" });
+  const crmPublicUrl = process.env.CRM_PUBLIC_URL || "http://localhost:3000";
+  const channelServiceUrl = process.env.CHANNEL_SERVICE_URL || "http://localhost:3001";
+  const configOk =
+    !crmPublicUrl.includes("localhost") && !channelServiceUrl.includes("localhost");
+
+  res.json({
+    ok: true,
+    service: "crm-backend",
+    crmPublicUrl,
+    channelServiceUrl,
+    configOk,
+    hint: configOk
+      ? undefined
+      : "Set CRM_PUBLIC_URL and CHANNEL_SERVICE_URL to your public Render/Northflank URLs (not localhost)",
+  });
 });
 
 // ── Customers ──
@@ -461,11 +475,6 @@ app.delete("/api/campaigns/:id", async (req: Request, res: Response) => {
       where: { id: req.params.id },
     });
     if (!campaign) return res.status(404).json({ error: "Campaign not found" });
-    if (campaign.status === "sending") {
-      return res.status(409).json({
-        error: "Cannot delete campaign while messages are still sending",
-      });
-    }
 
     await prisma.campaign.delete({ where: { id: req.params.id } });
     res.json({ ok: true });

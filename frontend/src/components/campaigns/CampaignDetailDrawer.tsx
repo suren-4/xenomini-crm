@@ -321,7 +321,7 @@ export function CampaignDetailDrawer({
               {sending ? "Sending..." : `Send to ${formatNumber(displayAudience)} customers`}
             </Button>
           )}
-          {campaign.status !== "sending" && onDelete && (
+          {onDelete && (
             <Button
               variant="outline"
               className="w-full text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-bg)]"
