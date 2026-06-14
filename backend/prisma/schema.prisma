@@ -1,0 +1,108 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Customer {
+  id         String   @id @default(cuid())
+  name       String
+  email      String   @unique
+  phone      String?
+  city       String?
+  totalSpend Float    @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  orders         Order[]
+  communications Communication[]
+
+  @@index([totalSpend])
+  @@index([city])
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amount      Float
+  items       String
+  purchasedAt DateTime
+  createdAt   DateTime @default(now())
+
+  attributedCommunication Communication?
+
+  @@index([customerId])
+  @@index([purchasedAt])
+}
+
+model Segment {
+  id        String   @id @default(cuid())
+  name      String
+  rules     String
+  ruleLogic String   @default("AND")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns Campaign[]
+}
+
+model Campaign {
+  id        String    @id @default(cuid())
+  name      String
+  segmentId String
+  segment   Segment   @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+  message   String
+  channel   String
+  tokens    String    @default("{}")
+  status    String    @default("draft")
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  communications Communication[]
+
+  @@index([segmentId])
+  @@index([status])
+}
+
+model Communication {
+  id                String    @id @default(cuid())
+  campaignId        String
+  campaign          Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customerId        String
+  customer          Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  channel           String
+  message           String
+  status            String    @default("queued")
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  openedAt          DateTime?
+  readAt            DateTime?
+  clickedAt         DateTime?
+  attributedOrderId String?   @unique
+  attributedOrder   Order?    @relation(fields: [attributedOrderId], references: [id])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  events CommunicationEvent[]
+
+  @@index([campaignId])
+  @@index([customerId])
+  @@index([status])
+}
+
+model CommunicationEvent {
+  id              String        @id @default(cuid())
+  communicationId String
+  communication   Communication @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+  eventType       String
+  timestamp       DateTime      @default(now())
+
+  @@unique([communicationId, eventType])
+  @@index([communicationId])
+  @@index([eventType])
+}
